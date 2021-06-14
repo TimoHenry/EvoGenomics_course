@@ -1,0 +1,117 @@
+---
+title: "2021_EvoGenomics_Module3_TR"
+output: html_notebook
+---
+
+This is a notebook to complete the tasks set in the Evolutionary Genomics course
+at University of Fribourg & Bern, as part of the mandatory curriculum towards a
+masters degree in Bioinformatics and Computational biology.
+This is for Module 3 of the course, taught by Thomas Flatt and Margot Paris in
+2021
+
+Notebook by Timo Rey, 14.06.2021
+
+
+
+Install packages if necessary:
+```{r}
+install.packages("BiocManager")
+BiocManager::install("LEA")
+BiocManager::install("SNPRelate")
+```
+
+Load packages:
+```{r}
+library("LEA")
+library("SNPRelate")
+```
+
+Load data-set
+```{r}
+# note: adapt path as suited.
+setwd("~/03_UniFR/FS2021_EvoGenomics/Module_3/") # set working dir
+GenotypesPan<-read.csv("./Chimp data/GenotypesPan.geno", sep="") # load file
+```
+
+# Investigate genetic diversity
+
+## 1) Compute expected heterozygosity:
+```{r}
+source("utilfunctions.r") # set of functions as provided by lecturers
+```
+
+Find sub-species:
+```{r}
+all_samples <- colnames(GenotypesPan)
+
+species_names <- c("bonobo", "chimps", "ellioti", "schweinfurthii", "verus", "troglodytes")
+
+species_indeces <- list()
+species_indeces[[1]] <- which(substr(all_samples, 5, 12)=="paniscus")
+species_indeces[[2]] <- which(substr(all_samples, 5, 15)=="troglodytes")
+
+species_indeces[[3]] <- which(substr(all_samples, 17, 23)=="ellioti")
+species_indeces[[4]] <- which(substr(all_samples, 17, 30)=="schweinfurthii")
+species_indeces[[5]] <- which(substr(all_samples, 17, 21)=="verus")
+species_indeces[[6]] <- which(substr(all_samples, 17, 27)=="troglodytes")
+```
+
+### Compute heterozygousity for each species/sub-species:
+```{r}
+heteroz <- matrix(NA,nrow=nrow(GenotypesPan), ncol=length(species_names))
+for(i in 1:length(species_names)) {
+  heteroz[,i] <- apply(GenotypesPan[,species_indeces[[i]]], 1, function(row) {ExpHet(row)}) 
+}
+mean_hetero <- colMeans(heteroz)
+```
+```{r}
+mean_hetero
+```
+
+Plot mean heterozygousity:
+```{r}
+library(RColorBrewer)
+mycols <- brewer.pal("Paired", n=length(species_names))
+barplot(mean_hetero, names.arg = species_names, col=mycols, border=mycols, beside=T, ylab="mean Expected heterozygosity")
+```
+
+
+## 2) Compute observed heterozygousity
+
+Function to compute individual heterozygousity:
+```{r}
+indiv_het <- function(indiv_genotype) {
+  hetero_sites <- sum(indiv_genotype==1, na.rm=T) # number heterozygous sites [remove NA-data]
+  hetero_sites/sum(!is.na(indiv_genotype))
+}
+```
+
+Compute heterozygousity for each sample:
+```{r}
+indiv_het <- apply(GenotypesPan, 2, function(col) {indiv_het(col)})
+indiv_het
+```
+Compute averages:
+```{r}
+mean_obs_het <- numeric(length(species_names))
+for(i in 1:length(species_names)) {
+  mean_obs_het[i] <- mean(indiv_het[species_indeces[[i]]])
+}
+mean_obs_het
+```
+Plot 'expected' vs. 'observed' means for each species and sub-species:
+```{r}
+barplot(rbind(mean_obs_het, mean_hetero), col=mycols[1:2], beside=T, names.arg = species_names, legend.text = c("observed","expected"))
+```
+
+## 3) Estimating the inbreeding coefficient for each (sub)species
+
+```{r}
+inbreed_coef <- 1 - (mean_obs_het/mean_hetero)
+inbreed_coef
+```
+
+plot:
+```{r}
+barplot(inbreed_coef, names.arg = species_names, col=mycols, border=mycols, beside=T, ylab="mean inbreeding per (sub)species", ylim=c(-0.1,0.1))
+```
